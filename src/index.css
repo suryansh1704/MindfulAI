@@ -1,0 +1,104 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 50% 98%;
+    --foreground: 210 40% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 40% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 40% 20%;
+
+    --primary: 196 80% 45%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 150 60% 40%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 20% 95%;
+    --muted-foreground: 210 40% 50%;
+
+    --accent: 262 60% 65%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 210 30% 90%;
+    --input: 210 30% 90%;
+    --ring: 210 40% 90%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 210 50% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 210 50% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 210 50% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 196 80% 45%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 150 60% 40%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 40% 20%;
+    --muted-foreground: 210 40% 70%;
+
+    --accent: 262 60% 65%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 210 40% 20%;
+    --input: 210 40% 20%;
+    --ring: 210 40% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .therapy-gradient {
+    @apply bg-gradient-to-br from-therapy-50 to-therapy-100;
+  }
+  
+  .mint-gradient {
+    @apply bg-gradient-to-br from-mint-50 to-mint-100;
+  }
+  
+  .lavender-gradient {
+    @apply bg-gradient-to-br from-lavender-50 to-lavender-100;
+  }
+  
+  .chat-container {
+    @apply h-[calc(100vh-16rem)] md:h-[calc(100vh-12rem)] overflow-y-auto p-4 rounded-lg;
+  }
+  
+  .message-ai {
+    @apply bg-therapy-100 text-therapy-900 rounded-2xl rounded-bl-none p-4 my-2 max-w-[80%] shadow-sm animate-fade-in;
+  }
+  
+  .message-user {
+    @apply bg-lavender-100 text-lavender-900 rounded-2xl rounded-br-none p-4 my-2 ml-auto max-w-[80%] shadow-sm animate-fade-in;
+  }
+}
