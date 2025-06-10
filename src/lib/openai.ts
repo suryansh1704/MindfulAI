@@ -1,3 +1,5 @@
+import { API_SERVER_URL } from '@/lib/config';
+
 // OpenAI API integration via backend proxy (CORS-safe)
 export const generateAIResponse = async (
   message: string,
@@ -6,8 +8,9 @@ export const generateAIResponse = async (
   try {
     console.log('Sending request to backend proxy...');
     console.log('Request data:', { message: message.substring(0, 50) + '...', language });
+    console.log('Using API URL:', API_SERVER_URL);
     
-    const response = await fetch('http://localhost:3000/api/chat', {
+    const response = await fetch(`${API_SERVER_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +62,7 @@ export const generateAIResponse = async (
     // Provide helpful error messages for other issues
     let errorMessage = 'Failed to get response from AI';
     if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
-      errorMessage = '❌ Cannot connect to backend server. Make sure the server is running on http://localhost:3000\n\n🔧 Run: .\\start-server.bat';
+      errorMessage = `❌ Cannot connect to backend server at ${API_SERVER_URL}\n\n🔧 Check if server is running`;
     } else if (error.message) {
       errorMessage = error.message;
     }
