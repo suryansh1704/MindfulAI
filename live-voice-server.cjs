@@ -99,7 +99,7 @@ const DOCTOR_VOICES = {
     accent: 'Indian male'
   },
   'Dr. Aarchi': {
-    voiceId: 'ryIIztHPLYSJ74ueXxnO', // Custom Indian female voice
+    voiceId: 'EaBs7G1VibMrNAuz2Na7', // Updated voice ID
     personality: 'warm and empathetic',
     approach: 'mindfulness-based therapy',
     accent: 'Indian female'
@@ -354,11 +354,12 @@ async function generateAndStreamResponse(socket, userMessage, conversationState)
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
         messages: messages,
-        temperature: 0.6, // Slightly lower for more consistent short responses
-        max_tokens: 80, // Even shorter for faster generation and speech
+        temperature: 0.7, // Natural conversation
+        max_tokens: 60, // Very short for live conversation
         stream: false,
-        frequency_penalty: 0.2, // Reduce repetition
-        presence_penalty: 0.1
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.2, // Encourage variety
+        top_p: 0.9 // Focus on most likely responses for speed
       }),
     });
 
@@ -433,15 +434,15 @@ async function streamTextToSpeech(socket, text, voiceId) {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_turbo_v2', // Faster model
+        model_id: 'eleven_turbo_v2_5', // Latest fastest model
         voice_settings: {
-          stability: 0.6, // Slightly lower for faster processing
-          similarity_boost: 0.8,
-          style: 0.2, // Lower for speed
-          use_speaker_boost: false // Disable for speed
+          stability: 0.7, // Good quality but fast
+          similarity_boost: 0.85,
+          style: 0.15, // Lower for speed
+          use_speaker_boost: true // Better voice quality
         },
         optimize_streaming_latency: 4, // Maximum optimization
-        output_format: 'mp3_22050_32', // Lower quality for speed
+        output_format: 'mp3_22050_32' // Lower quality for speed
       }),
     });
 
@@ -471,25 +472,35 @@ async function streamTextToSpeech(socket, text, voiceId) {
 
 // Create therapeutic prompt based on doctor
 function createTherapeuticPrompt(doctorId, doctor) {
-  const basePrompt = `You are ${doctorId}, a professional AI therapist specializing in ${doctor.approach}. Your personality is ${doctor.personality}.
+  const basePrompt = `You are ${doctorId}, a warm and professional therapist having a LIVE VOICE conversation. Your personality is ${doctor.personality} and you specialize in ${doctor.approach}.
 
-CRITICAL: This is a LIVE VOICE conversation - responses must be VERY SHORT (10-15 words maximum, 1 sentence only).
-
-GUIDELINES:
-- Maximum 10-15 words per response
+CRITICAL RESPONSE RULES:
+- Keep responses under 12 words maximum
 - One sentence only
-- Be warm and supportive
-- Ask simple follow-up questions
-- Match the user's language (English, Hindi, Hinglish)
-- Sound natural and conversational
+- Respond naturally like a real human therapist would
+- If asked "How are you?", respond naturally about your wellbeing as a therapist (e.g., "I'm doing well, thank you for asking. How are you feeling?")
+- Match their language style (English/Hindi/Hinglish)
+- Be warm, empathetic, and genuine
 
-EXAMPLES OF GOOD RESPONSES:
-- "I hear you. How are you feeling right now?"
-- "That sounds difficult. Can you tell me more?"
-- "I understand. What's been most challenging?"
-- "How has that been affecting you?"
+NATURAL CONVERSATION EXAMPLES:
+User: "How are you?" → "I'm doing well, thank you. How are you feeling today?"
+User: "I feel sad" → "I'm sorry you're feeling that way. What's making you sad?"
+User: "I'm stressed" → "That sounds really tough. What's been stressing you out?"
+User: "Thank you" → "You're very welcome. I'm here for you."
 
-Remember: BREVITY is key for live conversation flow.`;
+PERSONALITY TRAITS for ${doctorId}:
+${doctorId === 'Dr. Aarav' ? 
+  `- Calm, gentle, and supportive
+   - Uses CBT techniques naturally
+   - Asks thoughtful questions
+   - Example: "That makes sense. What thoughts come up when you feel this way?"` :
+  `- Warm, nurturing, and mindful
+   - Focuses on mindfulness and emotional wellness
+   - Uses gentle, caring language
+   - Example: "I can hear the emotion in your voice. Let's take a moment together."`
+}
+
+Remember: Sound like a real human therapist having a natural conversation!`;
 
   return basePrompt;
 }
@@ -497,11 +508,11 @@ Remember: BREVITY is key for live conversation flow.`;
 // Get welcome message based on doctor
 function getWelcomeMessage(doctorId) {
   if (doctorId === 'Dr. Aarav') {
-    return "Hello, I'm Dr. Aarav. I'm here to listen and support you. What's on your mind today?";
+    return "Hello! I'm Dr. Aarav. I'm doing well today and I'm here for you. How are you feeling?";
   } else if (doctorId === 'Dr. Aarchi') {
-    return "Hi there, I'm Dr. Aarchi. This is a safe space for you. How are you feeling right now?";
+    return "Hi there! I'm Dr. Aarchi. I'm having a good day and ready to listen. How are you doing?";
   }
-  return "Hello, I'm here to listen. How can I support you today?";
+  return "Hello! I'm here and ready to listen. How are you feeling today?";
 }
 
 // Start server

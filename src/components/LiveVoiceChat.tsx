@@ -25,12 +25,14 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
   const [textInput, setTextInput] = useState('');
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [currentTranscript, setCurrentTranscript] = useState(''); // Real-time transcript display
   
   const socketRef = useRef<Socket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
   const isLiveModeRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   // Initialize connection and speech recognition
@@ -56,6 +58,12 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      
+      // Clear any pending silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -79,7 +87,7 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
             console.log('⚠️ Could not auto-restart recognition:', error);
           }
         }
-      }, 2500); // Wait 2.5 seconds after AI finishes speaking for better audio separation
+      }, 1500); // Reduced wait time for faster conversation flow
 
       return () => clearTimeout(timer);
     }
@@ -224,14 +232,12 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
     recognition.onstart = () => {
       console.log('🎤 Speech recognition started');
       setIsListening(true);
+      setCurrentTranscript(''); // Clear previous transcript
     };
 
     let finalTranscript = '';
-    let timeoutId: NodeJS.Timeout | null = null;
 
     recognition.onresult = (event: any) => {
-      console.log('🎯 Speech recognition result event:', event);
-      
       // Don't process if AI is currently speaking (prevents feedback loop)
       if (isSpeaking) {
         console.log('🚫 Ignoring speech while AI is speaking to prevent feedback');
@@ -239,6 +245,7 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
       }
 
       let interimTranscript = '';
+      let hasNewFinal = false;
       
       // Process all results
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -246,23 +253,34 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
         
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
+          hasNewFinal = true;
         } else {
           interimTranscript += transcript;
         }
       }
 
-      // Clear any existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      // Show real-time transcription to user
+      const currentText = finalTranscript + interimTranscript;
+      setCurrentTranscript(currentText);
+
+      // Clear any existing silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
 
-             // Set a timeout to process the final result after user stops speaking
-      timeoutId = setTimeout(() => {
-        setIsProcessingVoice(true);
+      // If we have final text or enough interim text, set a shorter timeout
+      const isSubstantialText = currentText.trim().length > 3;
+      const silenceDelay = hasNewFinal ? 800 : (isSubstantialText ? 1200 : 1800); // Faster response times
+
+      // Set a timeout to process the final result after user stops speaking
+      silenceTimeoutRef.current = setTimeout(() => {
         const fullTranscript = (finalTranscript + interimTranscript).trim();
-        console.log('🗣️ Final speech recognized:', fullTranscript);
+        console.log('🗣️ Processing speech:', fullTranscript);
         
         if (fullTranscript && fullTranscript.length > 2) { // Ensure meaningful input
+          setIsProcessingVoice(true);
+          setCurrentTranscript(''); // Clear real-time display
+          
           // Check for end conversation commands
           const lowerTranscript = fullTranscript.toLowerCase();
           if (lowerTranscript.includes('end conversation') || 
@@ -286,6 +304,7 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
                 message: fullTranscript
               });
             }
+            setIsProcessingVoice(false);
             return;
           }
 
@@ -308,15 +327,23 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
           
           // Reset transcript
           finalTranscript = '';
+          setIsProcessingVoice(false);
         }
-        setIsProcessingVoice(false);
-        timeoutId = null;
-      }, 2000); // Wait 2 seconds after last speech activity
+        silenceTimeoutRef.current = null;
+      }, silenceDelay);
     };
 
     recognition.onerror = (event: any) => {
       console.error('❌ Speech recognition error:', event.error);
       setIsListening(false);
+      setCurrentTranscript(''); // Clear transcript on error
+      setIsProcessingVoice(false);
+      
+      // Clear any pending silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
       
       if (event.error === 'not-allowed') {
         toast({
@@ -336,6 +363,13 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
     recognition.onend = () => {
       console.log('🎤 Speech recognition ended');
       setIsListening(false);
+      setCurrentTranscript(''); // Clear transcript when ended
+      
+      // Clear any pending silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
       
       // Only restart if in live mode, not speaking, and not manually stopped
       setTimeout(() => {
@@ -354,10 +388,10 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
                   console.log('⚠️ Retry failed, speech recognition may have browser limits');
                 }
               }
-            }, 3000);
+            }, 2000); // Reduced retry delay
           }
         }
-      }, 1500); // Reasonable delay before restarting
+      }, 1000); // Faster restart - reduced from 1500ms to 1000ms
     };
 
     recognitionRef.current = recognition;
@@ -553,6 +587,20 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
                 </div>
               </div>
             ))
+          )}
+          
+          {/* Real-time transcript display */}
+          {currentTranscript && (
+            <div className="flex justify-end animate-pulse">
+              <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-blue-100 border-2 border-blue-300 text-slate-700">
+                <div className="flex items-center space-x-2 mb-1">
+                  <UserCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs text-blue-600 font-medium">You (typing...)</span>
+                  <Mic className="h-3 w-3 text-blue-500 animate-pulse" />
+                </div>
+                <p className="text-sm italic">{currentTranscript}</p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
