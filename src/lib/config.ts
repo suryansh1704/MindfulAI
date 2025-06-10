@@ -2,17 +2,17 @@
 export const API_CONFIG = {
   // Voice server WebSocket URL
   VOICE_SERVER_URL: import.meta.env.PROD 
-    ? import.meta.env.VITE_VOICE_SERVER_URL || 'wss://your-backend-app.railway.app'
+    ? import.meta.env.VITE_VOICE_SERVER_URL || 'wss://mindfulai-production.up.railway.app'
     : 'http://localhost:3001',
     
   // Main API server URL  
   API_SERVER_URL: import.meta.env.PROD
-    ? import.meta.env.VITE_API_SERVER_URL || 'https://your-backend-app.railway.app'
+    ? import.meta.env.VITE_API_SERVER_URL || 'https://mindfulai-production.up.railway.app'
     : 'http://localhost:3000',
     
   // Live voice server URL
   LIVE_VOICE_URL: import.meta.env.PROD
-    ? import.meta.env.VITE_LIVE_VOICE_URL || 'wss://your-backend-app.railway.app'
+    ? import.meta.env.VITE_LIVE_VOICE_URL || 'wss://mindfulai-production.up.railway.app'
     : 'http://localhost:3001'
 };
 
