@@ -5,6 +5,7 @@ import { Mic, MicOff, Volume2, VolumeX, Loader2, Play, Square } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import io, { Socket } from 'socket.io-client';
+import { API_SERVER_URL } from '@/lib/config';
 
 interface Message {
   id: string;
@@ -183,7 +184,7 @@ const VoiceChat = ({ selectedDoctor }: VoiceChatProps) => {
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
 
-    const response = await fetch('http://localhost:3000/api/transcribe', {
+    const response = await fetch(`${API_SERVER_URL}/api/transcribe`, {
       method: 'POST',
       body: formData,
     });
@@ -200,7 +201,7 @@ const VoiceChat = ({ selectedDoctor }: VoiceChatProps) => {
     try {
       setIsPlaying(true);
       
-      const response = await fetch('http://localhost:3000/api/speak', {
+      const response = await fetch(`${API_SERVER_URL}/api/speak`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

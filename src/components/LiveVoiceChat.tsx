@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, MicOff, Volume2, VolumeX, Loader2, UserCircle, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import io, { Socket } from 'socket.io-client';
+import { LIVE_VOICE_URL } from '@/lib/config';
 
 interface Message {
   type: 'user' | 'ai';
@@ -97,7 +98,7 @@ const LiveVoiceChat = ({ selectedDoctor, onBack }: LiveVoiceChatProps) => {
     try {
       setConnectionStatus('Connecting to voice server...');
       
-      const socket = io('http://localhost:3001', {
+      const socket = io(LIVE_VOICE_URL, {
         transports: ['websocket', 'polling'],
         upgrade: true,
         timeout: 20000,
