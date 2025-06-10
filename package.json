@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "npm run build && node unified-server.cjs"
+    "start": "node railway-start.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
