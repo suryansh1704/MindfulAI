@@ -43,7 +43,6 @@ const io = new Server(server, {
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
 
 // Configure multer for file uploads
 const upload = multer({
