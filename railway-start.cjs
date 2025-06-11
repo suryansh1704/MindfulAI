@@ -4,6 +4,9 @@ const path = require('path');
 
 console.log('🚀 Railway Start Script');
 console.log('====================');
+console.log('📍 Current directory:', process.cwd());
+console.log('📍 Node version:', process.version);
+console.log('📍 Platform:', process.platform);
 
 try {
   // Step 1: Build the frontend
@@ -17,12 +20,15 @@ try {
     throw new Error('❌ Dist folder not found after build');
   }
   console.log('✅ Dist folder confirmed');
+  console.log('📂 Dist contents:', fs.readdirSync(distPath));
   
   // Step 3: Start the unified server
   console.log('🔄 Starting unified server...');
+  console.log('📍 About to require unified-server.cjs');
   require('./unified-server.cjs');
   
 } catch (error) {
   console.error('❌ Railway start error:', error.message);
+  console.error('📜 Full error:', error);
   process.exit(1);
 } 
