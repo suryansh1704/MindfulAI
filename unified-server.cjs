@@ -528,8 +528,16 @@ function getWelcomeMessage(doctorId) {
   return "Hello! I'm here and ready to listen. How are you feeling today?";
 }
 
-// Serve static files for frontend
-app.use((req, res) => {
+// Serve static files for frontend (only for non-API routes)
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Catch-all route for SPA - only serve index.html for non-API routes
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+  
   const indexPath = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);

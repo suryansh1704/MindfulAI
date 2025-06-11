@@ -27,11 +27,25 @@ const Chat = () => {
           ) : (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
               <MessageSquareHeart className="h-16 w-16 text-muted mb-6" />
-              <h2 className="text-2xl font-bold mb-4">Sign in to start your therapy session</h2>
-              <p className="text-muted-foreground max-w-md mb-8">
-                Connect with our AI therapist for supportive conversations in your preferred language.
-              </p>
-              <Button size="lg" onClick={signIn}>Sign In with Google</Button>
+              
+              {/* Check if Firebase is configured */}
+              {import.meta.env.VITE_FIREBASE_API_KEY ? (
+                <>
+                  <h2 className="text-2xl font-bold mb-4">Sign in to start your therapy session</h2>
+                  <p className="text-muted-foreground max-w-md mb-8">
+                    Connect with our AI therapist for supportive conversations in your preferred language.
+                  </p>
+                  <Button size="lg" onClick={signIn}>Sign In with Google</Button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-bold mb-4">Welcome to MindfulAI</h2>
+                  <p className="text-muted-foreground max-w-md mb-8">
+                    Connect with our AI therapist for supportive conversations. Authentication is currently disabled.
+                  </p>
+                  <TherapyModeSelector />
+                </>
+              )}
             </div>
           )}
         </div>

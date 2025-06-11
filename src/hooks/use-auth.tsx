@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'sonner';
 import { 
@@ -30,6 +29,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // If Firebase is not configured, skip auth and just set loading to false
+    if (!auth) {
+      console.log('⚠️ Firebase not configured - skipping authentication');
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         // Convert Firebase user to our User type
@@ -50,6 +56,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const signIn = async () => {
+    if (!auth || !googleProvider) {
+      toast.error('Authentication not configured. Please set up Firebase credentials.');
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -63,6 +74,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const signOut = async () => {
+    if (!auth) {
+      toast.error('Authentication not configured.');
+      return;
+    }
+
     setLoading(true);
     try {
       await firebaseSignOut(auth);
@@ -82,7 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
