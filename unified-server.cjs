@@ -71,6 +71,15 @@ const conversationStates = new Map();
 
 // ============= API ROUTES =============
 
+// Simple test endpoint - this should work if routes are working at all
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    status: 'API ROUTES WORKING!', 
+    timestamp: new Date().toISOString(),
+    message: 'If you see this, the API routes are working properly'
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
