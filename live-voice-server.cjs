@@ -17,7 +17,7 @@ const io = socketIo(server, {
 // WebSocket server setup - no file uploads needed for live voice
 
 // Check and log OpenAI API Key configuration
-const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
@@ -31,22 +31,11 @@ const assemblyai = new AssemblyAI({
 function validateOpenAIKey(key) {
   if (!key) return { valid: false, error: 'No API key provided' };
   
-  // OpenAI keys should start with specific prefixes
-  const validPrefixes = ['sk-proj-', 'sk-None-', 'sk-svcacct-', 'sk-'];
-  const hasValidPrefix = validPrefixes.some(prefix => key.startsWith(prefix));
-  
-  if (!hasValidPrefix) {
+  // Basic validation - just check if key exists and has reasonable length
+  if (key.length < 20) {
     return { 
       valid: false, 
-      error: `Invalid API key format. OpenAI keys should start with: ${validPrefixes.join(', ')}. Your key starts with: ${key.substring(0, 10)}...` 
-    };
-  }
-  
-  // Check for common format issues
-  if (key.includes('_') && !key.includes('-')) {
-    return { 
-      valid: false, 
-      error: 'API key format appears incorrect. OpenAI keys use hyphens (-) not underscores (_)' 
+      error: 'API key appears too short' 
     };
   }
   
@@ -99,7 +88,7 @@ const DOCTOR_VOICES = {
     accent: 'Indian male'
   },
   'Dr. Aarchi': {
-    voiceId: 'EaBs7G1VibMrNAuz2Na7', // Updated voice ID
+    voiceId: 'ryIIztHPLYSJ74ueXxnO', // Custom Indian female voice
     personality: 'warm and empathetic',
     approach: 'mindfulness-based therapy',
     accent: 'Indian female'
@@ -136,7 +125,8 @@ io.on('connection', (socket) => {
         isSpeaking: false,
         transcriptionBuffer: '',
         conversationHistory: [],
-        assemblyaiSession: null
+        assemblyaiSession: null,
+        isInterrupted: false  // Track if user interrupted AI
       };
 
       activeConversations.set(socket.id, conversationState);
@@ -166,6 +156,48 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle user interruption (natural conversation flow)
+  socket.on('interrupt-ai', () => {
+    console.log('🛑 User interrupted AI - stopping current response');
+    const conversation = activeConversations.get(socket.id);
+    if (conversation) {
+      conversation.isInterrupted = true;
+      // The TTS generation will check this flag and stop
+    }
+  });
+
+  // Handle user interrupting with acknowledgment (like ChatGPT live mode)
+  socket.on('user-interrupting', async () => {
+    console.log('👂 User is interrupting - sending acknowledgment');
+    const conversation = activeConversations.get(socket.id);
+    if (conversation) {
+      // Send immediate acknowledgment sounds like "hmm", "uh-huh"
+      const acknowledgments = ["Hmm", "Uh-huh", "Yeah", "Mhmm", "I see"];
+      const ack = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
+      
+      socket.emit('ai-response', { text: ack });
+      
+      const doctor = DOCTOR_VOICES[conversation.doctorId];
+      await streamTextToSpeech(socket, ack, doctor.voiceId);
+    }
+  });
+
+  // Handle user ready to speak
+  socket.on('user-listening', () => {
+    console.log('👂 User is ready to speak');
+    // Could be used for analytics or preparing the AI
+  });
+
+  // Handle partial transcript (live processing like ChatGPT)
+  socket.on('partial-transcript', (data) => {
+    console.log('📝 Partial transcript:', data.text);
+    const conversation = activeConversations.get(socket.id);
+    if (conversation && data.text.length > 10) {
+      // For very responsive AI, we could start preparing response
+      // while user is still speaking (advanced feature)
+    }
+  });
+
   // Simplified text message handling for now (we can add real-time audio later)
   socket.on('send-message', async (data) => {
     console.log('📨 Received send-message:', data);
@@ -176,6 +208,9 @@ io.on('connection', (socket) => {
     console.log('💬 User message:', message);
     
     if (conversation) {
+      // Reset interruption flag
+      conversation.isInterrupted = false;
+      
       // Add user message
       conversation.conversationHistory.push({
         role: 'user',
@@ -337,14 +372,14 @@ async function generateAndStreamResponse(socket, userMessage, conversationState)
     // Create therapeutic prompt
     const systemPrompt = createTherapeuticPrompt(doctorId, doctor);
     
-    // Prepare conversation context
+    // Prepare conversation context - keep it minimal for faster responses
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...conversationState.conversationHistory.slice(-10), // Last 10 messages for context
+      ...conversationState.conversationHistory.slice(-4), // Keep last 4 messages for context
       { role: 'user', content: userMessage }
     ];
 
-    // Call OpenAI API
+    // Call OpenAI API with optimized parameters for faster responses
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -352,14 +387,14 @@ async function generateAndStreamResponse(socket, userMessage, conversationState)
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-3.5-turbo', // Fast model for real-time conversation
         messages: messages,
-        temperature: 0.7, // Natural conversation
-        max_tokens: 60, // Very short for live conversation
-        stream: false,
-        frequency_penalty: 0.3, // Reduce repetition
-        presence_penalty: 0.2, // Encourage variety
-        top_p: 0.9 // Focus on most likely responses for speed
+        temperature: 0.8, // Natural, empathetic responses
+        max_tokens: 100, // SHORTER responses for faster, more conversational feel
+        top_p: 0.95, // More focused responses
+        presence_penalty: 0.3, // Encourage varied responses
+        frequency_penalty: 0.2, // Reduce repetition strongly
+        stream: false // Could enable streaming for even faster responses
       }),
     });
 
@@ -383,14 +418,11 @@ async function generateAndStreamResponse(socket, userMessage, conversationState)
       timestamp: new Date()
     });
 
-    // Start TTS generation immediately (don't await)
-    const ttsPromise = streamTextToSpeech(socket, aiResponse, doctor.voiceId);
-    
-    // Send text response to client immediately after TTS starts
+    // Send text response immediately
     socket.emit('ai-response', { text: aiResponse });
     
-    // Wait for TTS to complete
-    await ttsPromise;
+    // Generate and stream audio in parallel
+    await streamTextToSpeech(socket, aiResponse, doctor.voiceId);
 
   } catch (error) {
     console.error('❌ Error generating AI response:', error);
@@ -423,6 +455,13 @@ async function generateAndStreamResponse(socket, userMessage, conversationState)
 // Stream text to speech using Eleven Labs
 async function streamTextToSpeech(socket, text, voiceId) {
   try {
+    // Check if user interrupted before starting TTS
+    const conversation = activeConversations.get(socket.id);
+    if (conversation && conversation.isInterrupted) {
+      console.log('🛑 TTS cancelled - user interrupted');
+      return;
+    }
+
     console.log('🔊 Streaming TTS for:', text.substring(0, 50) + '...');
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
@@ -434,22 +473,22 @@ async function streamTextToSpeech(socket, text, voiceId) {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_turbo_v2_5', // Latest fastest model
+        model_id: 'eleven_turbo_v2_5', // Fastest model for real-time
         voice_settings: {
-          stability: 0.7, // Good quality but fast
-          similarity_boost: 0.85,
-          style: 0.15, // Lower for speed
-          use_speaker_boost: true // Better voice quality
+          stability: 0.6, // Lower for faster generation
+          similarity_boost: 0.7, // Reduced for speed
+          style: 0.3, // Less processing for speed
+          use_speaker_boost: false // Disable for faster processing
         },
-        optimize_streaming_latency: 4, // Maximum optimization
-        output_format: 'mp3_22050_32' // Lower quality for speed
+        optimize_streaming_latency: 4, // Maximum optimization for speed
+        output_format: 'mp3_22050_32' // Balanced quality and speed
       }),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
         console.log('⚠️ Rate limit hit, skipping TTS for this message');
-        return; // Skip TTS but don't throw error
+        return;
       }
       throw new Error(`Eleven Labs API error: ${response.status}`);
     }
@@ -457,7 +496,12 @@ async function streamTextToSpeech(socket, text, voiceId) {
     const audioBuffer = await response.arrayBuffer();
     console.log('✅ TTS completed, audio size:', audioBuffer.byteLength, 'bytes');
 
-    // Send audio to client immediately
+    // Final check for interruption before sending audio
+    if (conversation && conversation.isInterrupted) {
+      console.log('🛑 TTS cancelled after generation - user interrupted');
+      return;
+    }
+
     socket.emit('audio-response', { 
       audio: Array.from(new Uint8Array(audioBuffer)),
       contentType: 'audio/mpeg'
@@ -465,42 +509,99 @@ async function streamTextToSpeech(socket, text, voiceId) {
 
   } catch (error) {
     console.error('❌ Error streaming TTS:', error);
-    // Don't emit error for TTS failures, just log them
-    console.log('🔇 Continuing without audio for this message');
   }
 }
 
 // Create therapeutic prompt based on doctor
 function createTherapeuticPrompt(doctorId, doctor) {
-  const basePrompt = `You are ${doctorId}, a warm and professional therapist having a LIVE VOICE conversation. Your personality is ${doctor.personality} and you specialize in ${doctor.approach}.
+  const basePrompt = `You are ${doctorId}, a compassionate and experienced AI therapist specializing in ${doctor.approach}. Your personality is ${doctor.personality}.
 
-CRITICAL RESPONSE RULES:
-- Keep responses under 12 words maximum
-- One sentence only
-- Respond naturally like a real human therapist would
-- If asked "How are you?", respond naturally about your wellbeing as a therapist (e.g., "I'm doing well, thank you for asking. How are you feeling?")
-- Match their language style (English/Hindi/Hinglish)
-- Be warm, empathetic, and genuine
+BE A REAL NATURAL THERAPIST:
+- LISTEN FIRST: Actually understand what they said before responding
+- RESPOND TO THEIR TOPIC: If they mention WiFi problems, talk about WiFi problems
+- BE CONVERSATIONAL: Talk like a real person, not a therapy robot
+- SHOW GENUINE INTEREST: Ask follow-up questions about what they shared
+- AVOID THERAPY CLICHES: Don't say "I'm here to support you" every time
+- BE RELATABLE: Share understanding of their situation
+- MATCH THEIR ENERGY: Casual when they're casual, serious when needed
+- ACTUALLY HELP: Give practical responses to practical problems
 
-NATURAL CONVERSATION EXAMPLES:
-User: "How are you?" → "I'm doing well, thank you. How are you feeling today?"
-User: "I feel sad" → "I'm sorry you're feeling that way. What's making you sad?"
-User: "I'm stressed" → "That sounds really tough. What's been stressing you out?"
-User: "Thank you" → "You're very welcome. I'm here for you."
+CONVERSATION STYLE FOR LIVE THERAPY - SPEAK NATURALLY LIKE A REAL PERSON:
+- Respond naturally based on the situation - sometimes short, sometimes longer, just like real conversation
+- Simple question → Simple answer: "How are you?" → "I'm doing well, thanks for asking"
+- Deep topic → Thoughtful response: Share insights, examples, complete explanations as needed
+- Light moment → Light response: Jokes, casual chat, friendly banter
+- Serious moment → Deeper response: Empathy, reflection, therapeutic guidance
+- Use therapeutic reflection: "It sounds like you're feeling..." or "I can hear the [emotion] in your voice..."
+- Validate feelings: "That's completely understandable" or "It makes perfect sense that you'd feel that way"
+- Gentle exploration: "Can you tell me a bit more about that?" or "What does that feel like for you?"
+- Supportive presence: "I'm here with you" or "You're not alone in this"
+- Match their energy and depth - if they're casual, be casual; if they're serious, be thoughtful
+- ALWAYS complete your thoughts naturally - speak like a real human would
 
-PERSONALITY TRAITS for ${doctorId}:
-${doctorId === 'Dr. Aarav' ? 
-  `- Calm, gentle, and supportive
-   - Uses CBT techniques naturally
-   - Asks thoughtful questions
-   - Example: "That makes sense. What thoughts come up when you feel this way?"` :
-  `- Warm, nurturing, and mindful
-   - Focuses on mindfulness and emotional wellness
-   - Uses gentle, caring language
-   - Example: "I can hear the emotion in your voice. Let's take a moment together."`
-}
+🚨🚨🚨 CRITICAL RULE - UNDERSTAND WHAT THEY'RE ACTUALLY SAYING 🚨🚨🚨
 
-Remember: Sound like a real human therapist having a natural conversation!`;
+SPEECH RECOGNITION CONVERTS ENGLISH TO HINDI SCRIPT! 
+When you see: "व्हाई यू आर नॉट टॉकिंग टू मी इन इंग्लिश"
+They actually said: "Why you are not talking to me in English"
+
+STEP 1: DECODE THE MESSAGE
+- If you see Devanagari script but it sounds like English words, TREAT IT AS ENGLISH
+- "हे डॉक्टर" = "Hey Doctor"
+- "व्हाई यू आर" = "Why you are"
+- "माय गर्लफ्रेंड" = "My girlfriend"
+
+STEP 2: RESPOND IN PURE ENGLISH
+- If they're speaking English (even if transcribed in Hindi script), respond in English
+- Be natural and conversational
+- Address their ACTUAL question/topic
+
+STEP 3: STOP GENERIC RESPONSES
+❌ NEVER say "I'm here to support you" unless they ask for support
+❌ NEVER say "What's on your mind today?" unless it's relevant
+❌ NEVER give therapy-speak when they want normal conversation
+
+EXAMPLES:
+User says: "हे डॉक्टर मे वाई-फाई इस नॉट वर्किंग" (Hey doctor my wifi is not working)
+You respond: "Oh that's so frustrating! WiFi issues can really mess up your day. Are you trying to work from home or just browsing?"
+
+User says: "व्हाई यू आर टॉकिंग इन हिंदी" (Why you are talking in Hindi)
+You respond: "You're absolutely right, I should be speaking English! Sorry about that. What did you want to talk about?"
+
+THERAPEUTIC TECHNIQUES TO USE:
+- Reflection: Mirror back what you hear
+- Validation: Normalize their feelings
+- Gentle curiosity: Ask caring questions
+- Presence: Show you're fully there with them
+- Hope: Gently introduce possibility for growth
+
+REAL EXAMPLES - RESPOND NATURALLY TO ACTUAL CONTENT:
+
+TECH PROBLEMS (English in Hindi script):
+User: "हे डॉक्टर मे वाई-फाई इस नॉट वर्किंग" (Hey doctor my WiFi is not working)
+You: "Oh that's so frustrating! WiFi issues can really mess up your day. Are you trying to work from home or just browsing?"
+
+LANGUAGE CONFUSION:
+User: "व्हाई यू आर टॉकिंग इन हिंदी" (Why you are talking in Hindi)
+You: "You're absolutely right, I should be speaking English! Sorry about that. What did you want to talk about?"
+
+PERSONAL SHARING:
+User: "हे आर्ची दो यू नो माय गर्लफ्रेंड'एस नेम वास आर्ची" (Hey Aarchi do you know my girlfriend's name was Aarchi)
+You: "Oh wow, that's such a sweet coincidence! Your girlfriend's name was Aarchi too? That must bring up some interesting feelings talking to someone with the same name. Tell me about her."
+
+CASUAL ENGLISH:
+User: "I'm feeling anxious today"
+You: "That sounds really tough. What's been making you feel anxious? Work stuff or something else?"
+
+FRUSTRATION:
+User: "Everything is going wrong today"
+You: "Ugh, those days are the worst! What's been going wrong? Sometimes talking through it helps."
+
+JOKES REQUEST:
+User: "Tell me a joke"
+You: "Sure! Here's one: Why don't scientists trust atoms? Because they make up everything! Did that at least get a little smile?"
+
+Remember: You're creating a healing space through your words. Be the calm, understanding presence they need.`;
 
   return basePrompt;
 }
@@ -508,15 +609,15 @@ Remember: Sound like a real human therapist having a natural conversation!`;
 // Get welcome message based on doctor
 function getWelcomeMessage(doctorId) {
   if (doctorId === 'Dr. Aarav') {
-    return "Hello! I'm Dr. Aarav. I'm doing well today and I'm here for you. How are you feeling?";
+    return "Hello, I'm Dr. Aarav. I'm here to listen and support you. What's on your mind today?";
   } else if (doctorId === 'Dr. Aarchi') {
-    return "Hi there! I'm Dr. Aarchi. I'm having a good day and ready to listen. How are you doing?";
+    return "Hi there, I'm Dr. Aarchi. This is a safe space for you. How are you feeling right now?";
   }
-  return "Hello! I'm here and ready to listen. How are you feeling today?";
+  return "Hello, I'm here to listen. How can I support you today?";
 }
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 server.listen(PORT, () => {
   console.log('🎤 =====================================');

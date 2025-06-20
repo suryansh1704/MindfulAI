@@ -1,15 +1,12 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import cors from 'cors';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require('express');
+const path = require('path');
+const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Environment variables with fallback (same as live voice server)
+// Environment variables - MUST be set in production
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
 // Middleware - More permissive CORS for development
@@ -18,7 +15,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
-  optionsSuccessStatus: 200 // For legacy browser support
+  optionsSuccessStatus: 200
 }));
 
 // Handle preflight requests
@@ -27,7 +24,7 @@ app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-console.log('🚀 Starting MindfulAI Server');
+console.log('🚀 Starting MindfulAI Server (Working Version)');
 console.log('OpenAI API Key:', OPENAI_API_KEY ? 'SET' : 'NOT SET');
 
 // API Routes
@@ -37,7 +34,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     openai: !!OPENAI_API_KEY,
-    message: 'Node.js server is running!'
+    message: 'Working Node.js server is running!'
   });
 });
 
@@ -53,7 +50,6 @@ app.get('/api/test', (req, res) => {
 app.post('/api/chat', async (req, res) => {
   console.log('🔥 Chat request received from:', req.get('origin') || req.get('host'));
   console.log('📝 Request body:', req.body);
-  console.log('🌐 Headers:', req.headers);
   
   // Set CORS headers explicitly
   res.header('Access-Control-Allow-Origin', req.get('origin') || '*');
@@ -75,6 +71,9 @@ app.post('/api/chat', async (req, res) => {
     }
 
     console.log('🤖 Making OpenAI request for message:', message.substring(0, 50) + '...');
+    
+    // Import fetch for Node.js
+    const fetch = (await import('node-fetch')).default;
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -116,15 +115,24 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Serve static files
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
 
-// SPA fallback for all other routes (Express 5.x compatible)
+// Simple SPA fallback - avoid complex routing
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  const indexFile = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(indexFile)) {
+    res.sendFile(indexFile);
+  } else {
+    res.json({ message: 'MindfulAI API Server is running! Frontend files not found.' });
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🎯 Server running on port ${PORT}`);
+  console.log(`🎯 Working server running on port ${PORT}`);
   console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
   console.log(`💬 Chat: http://localhost:${PORT}/api/chat`);
+  console.log(`📱 Frontend: http://localhost:8081`);
 }); 
